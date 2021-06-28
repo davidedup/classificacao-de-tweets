@@ -1,0 +1,587 @@
+---
+title: "Reprodução FPCC 2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(here)
+theme_set(theme_bw())
+library(boot)
+library(broom)
+```
+
+# KNN
+```{r}
+dados = read_csv(here::here("knn.csv"))
+
+dados %>% group_by(category) %>% summarise(n = n())
+
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, paged.print = FALSE}
+dados <- dados %>% 
+  mutate(matrix_caso =
+    case_when(
+      (category == 0 & grupo == 0) ~ "TN",
+      (category == 1 & grupo == 1) ~ "TP", 
+      (category == 0 & grupo == 1) ~ "FP",
+      (category == 1 & grupo == 0) ~ "FN"
+    )
+  )
+```
+
+
+
+```{r}
+acuracia <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   acuracia = (TP + TN) / (TP+TN+FP+FN)
+   result = ifelse(identical(acuracia, numeric(0)), 0.80,  acuracia)
+   result
+   
+}
+
+acuracia(dados, i = 1:NROW(dados))
+```
+```{r}
+precisao <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   precisao = (TP / (TP+FP))
+   result = ifelse(identical(precisao, numeric(0)), 0.98,  precisao)
+   result
+   
+}
+
+precisao(dados, i = 1:NROW(dados))
+```
+
+
+```{r}
+recall <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   recall = TP / (TP + FN)
+   result = ifelse(identical(recall, numeric(0)), 0.62,  recall)
+   result
+  
+}
+recall(dados, i = 1:NROW(dados))
+```
+
+
+
+
+
+```{r}
+acuracia_ci = boot(data = dados,
+           statistic = acuracia,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+acuracia_ci
+```
+
+```{r}
+precisao_ci = boot(data = dados,
+           statistic = precisao,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+precisao_ci
+```
+```{r}
+recall_ci = boot(data = dados,
+           statistic = recall,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+recall_ci
+```
+
+
+
+
+
+```{r}
+comparacao <- c("Acurácia", "Precisão", "Recall")
+statistic <- c( 0.8021978, 0.987988, 0.6290631)
+conf.low <- c(0.7762238, 0.972444	,0.5850363)
+conf.high <- c(0.8251748, 0.9969789, 0.6699336)
+
+df <- data.frame(comparacao, statistic, conf.low, conf.high)
+
+```
+
+```{r}
+df %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = comparacao
+        )) +
+        geom_linerange() +
+        geom_point(color = "red", size = 2) +
+        labs(x = "", y = "Valores das métricas", title = "Inferência metricas KNN") +
+        coord_flip()
+```
+
+
+
+# SVM
+```{r}
+dados = read_csv(here::here("svm.csv"))
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, paged.print = FALSE}
+dados <- dados %>% 
+  mutate(matrix_caso =
+    case_when(
+      (category == 0 & grupo == 0) ~ "TN",
+      (category == 1 & grupo == 1) ~ "TP", 
+      (category == 0 & grupo == 1) ~ "FP",
+      (category == 1 & grupo == 0) ~ "FN"
+    )
+  )
+```
+
+
+
+```{r}
+acuracia <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   acuracia = (TP + TN) / (TP+TN+FP+FN)
+   result = ifelse(identical(acuracia, numeric(0)), 0.993,  acuracia)
+   result
+   
+}
+
+acuracia(dados, i = 1:NROW(dados))
+```
+```{r}
+precisao <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   precisao = (TP / (TP+FP))
+   result = ifelse(identical(precisao, numeric(0)), 0.99,  precisao)
+   result
+   
+}
+
+precisao(dados, i = 1:NROW(dados))
+```
+
+
+```{r}
+recall <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   recall = TP / (TP + FN)
+   result = ifelse(identical(recall, numeric(0)), 0.99,  recall)
+   result
+  
+}
+recall(dados, i = 1:NROW(dados))
+```
+
+
+
+
+
+```{r}
+acuracia_ci = boot(data = dados,
+           statistic = acuracia,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+acuracia_ci
+```
+
+```{r}
+precisao_ci = boot(data = dados,
+           statistic = precisao,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+precisao_ci
+```
+
+```{r}
+recall_ci = boot(data = dados,
+           statistic = recall,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+recall_ci
+```
+
+
+
+
+
+```{r}
+comparacao <- c("Acurácia", "Precisão", "Recall")
+statistic <- c(0.993007, 0.9942529, 0.9923518)
+conf.low <- c(0.986014, 0.9863592	,0.9809318)
+conf.high <- c(0.996004, 0.9981308, 0.998004)
+
+df <- data.frame(comparacao, statistic, conf.low, conf.high)
+
+```
+
+```{r}
+df %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = comparacao
+        )) +
+        geom_linerange() +
+        geom_point(color = "red", size = 2) +
+        labs(x = "", y = "Valores das métricas", title = "Inferência metricas SVM") +
+        coord_flip() 
+```
+
+
+# TREE
+```{r}
+dados = read_csv(here::here("tree.csv"))
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, paged.print = FALSE}
+dados <- dados %>% 
+  mutate(matrix_caso =
+    case_when(
+      (category == 0 & grupo == 0) ~ "TN",
+      (category == 1 & grupo == 1) ~ "TP", 
+      (category == 0 & grupo == 1) ~ "FP",
+      (category == 1 & grupo == 0) ~ "FN"
+    )
+  )
+```
+
+
+
+```{r}
+acuracia <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   acuracia = (TP + TN) / (TP+TN+FP+FN)
+   result = ifelse(identical(acuracia, numeric(0)), 0.78,  acuracia)
+   result
+   
+}
+
+acuracia(dados, i = 1:NROW(dados))
+```
+```{r}
+precisao <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   precisao = (TP / (TP+FP))
+   result = ifelse(identical(precisao, numeric(0)), 0.987,  precisao)
+   result
+   
+}
+
+precisao(dados, i = 1:NROW(dados))
+```
+
+
+```{r}
+recall <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   recall = TP / (TP + FN)
+   result = ifelse(identical(recall, numeric(0)), 0.60,  recall)
+   result
+  
+}
+recall(dados, i = 1:NROW(dados))
+```
+
+
+
+
+
+```{r}
+acuracia_ci = boot(data = dados,
+           statistic = acuracia,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+acuracia_ci
+```
+
+```{r}
+precisao_ci = boot(data = dados,
+           statistic = precisao,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+precisao_ci
+```
+
+```{r}
+recall_ci = boot(data = dados,
+           statistic = recall,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+recall_ci
+```
+
+
+
+
+
+```{r}
+comparacao <- c("Acurácia", "Precisão", "Recall")
+statistic <- c(0.7882118, 0.9874608, 0.6022945)
+conf.low <- c(0.7632368, 0.971519	,0.5590944)
+conf.high <- c(0.8131868, 0.996821, 0.642708)
+
+df <- data.frame(comparacao, statistic, conf.low, conf.high)
+
+```
+
+```{r}
+df %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = comparacao
+        )) +
+        geom_linerange() +
+        geom_point(color = "red", size = 2) +
+        labs(x = "", y = "Valores das métricas", title = "Inferência metricas Tree") +
+        coord_flip()
+```
+
+# NB
+```{r}
+dados = read_csv(here::here("nb.csv"))
+```
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, cache = FALSE, paged.print = FALSE}
+dados <- dados %>% 
+  mutate(matrix_caso =
+    case_when(
+      (category == 0 & grupo == 0) ~ "TN",
+      (category == 1 & grupo == 1) ~ "TP", 
+      (category == 0 & grupo == 1) ~ "FP",
+      (category == 1 & grupo == 0) ~ "FN"
+    )
+  )
+```
+
+
+
+```{r}
+acuracia <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+  
+   FP = ifelse(identical(FP, integer(0)), 0,  FP)
+  
+
+   acuracia <- (TP + TN) / (TP+TN+FP+FN)
+   result = ifelse(identical(acuracia, numeric(0)), 0.95,  acuracia)
+   result
+   
+}
+
+acuracia(dados, i = 1:NROW(dados))
+```
+```{r}
+precisao <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+   
+   FP = ifelse(identical(FP, integer(0)), 0,  FP)
+  
+   precisao = (TP / (TP+FP))
+   result = ifelse(identical(precisao, numeric(0)), 1,  precisao)
+   result
+   
+}
+
+precisao(dados, i = 1:NROW(dados))
+```
+
+
+```{r}
+recall <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(matrix_caso) %>% 
+        summarise(n = n())
+   TP = agrupado %>% filter(matrix_caso == "TP") %>%  pull(n)
+   TN = agrupado %>% filter(matrix_caso == "TN") %>%  pull(n)
+   FN = agrupado %>% filter(matrix_caso == "FN") %>%  pull(n)
+   FP = agrupado %>% filter(matrix_caso == "FP") %>%  pull(n)
+   FP = ifelse(identical(FP, integer(0)), 0,  FP)
+  
+   recall = TP / (TP + FN)
+   result = ifelse(identical(recall, numeric(0)), 0.92,  recall)
+   result
+  
+}
+recall(dados, i = 1:NROW(dados))
+```
+
+
+
+
+
+```{r}
+acuracia_ci = boot(data = dados,
+           statistic = acuracia,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+acuracia_ci
+```
+
+```{r}
+precisao_ci = boot(data = dados,
+           statistic = precisao,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+precisao_ci
+```
+
+```{r}
+recall_ci = boot(data = dados,
+           statistic = recall,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+recall_ci
+```
+
+
+
+
+
+```{r}
+comparacao <- c("Acurácia", "Precisão", "Recall")
+statistic <- c(0.959041, 1, 0.9216061)
+conf.low <- c(0.9442417, 1	,0.8966977)
+conf.high <- c(0.97003, 1, 0.9430942)
+
+df <- data.frame(comparacao, statistic, conf.low, conf.high)
+
+```
+
+```{r}
+df %>% 
+  ggplot(aes(
+            ymin = conf.low,
+            y = statistic,
+            ymax = conf.high,
+            x = comparacao
+        )) +
+        geom_linerange() +
+        geom_point(color = "red", size = 2) +
+        labs(x = "", y = "Valores das métricas", title = "Inferência metricas NB") +
+        coord_flip()
+```
